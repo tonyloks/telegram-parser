@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 from src import env_config_handler
 import logging
 from config.logger import get_logger
+logger = get_logger(__name__)
 # endregion
 
 # region Класс тестов
@@ -41,7 +42,6 @@ class TestEnvConfigHandler(unittest.TestCase):
     # Side Effects: None
     # Raises: AssertionError
     def test_get_user_data_env(self):
-        logger = get_logger(__name__)
         logger.info('[START_TEST][test_get_user_data_env]')
         # Проверяем чтение реального .env из корня проекта
         data = env_config_handler.get_user_data()
@@ -59,7 +59,6 @@ class TestEnvConfigHandler(unittest.TestCase):
     # Side Effects: None
     # Raises: AssertionError
     def test_setup_user_data_update(self):
-        logger = get_logger(__name__)
         logger.info('[START_TEST][test_setup_user_data_update]')
         with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
             tf.write("API_ID=1\n")

@@ -29,8 +29,20 @@
 import os
 import logging
 import yaml
+import sys
+from pathlib import Path
+# Добавляем корень проекта в sys.path для корректного импорта config
+sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 from config.logger import get_logger
 # endregion
+
+# region Корректировка sys.path для импорта config
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+# endregion
+
+
 
 # region Константы
 CONFIG_PATH: str = "config/config.yaml"
@@ -144,9 +156,12 @@ def setup_config() -> None:
 
 # region Точка входа
 if __name__ == "__main__":
-    print("Тест get_config():", get_config())
-    test_config = {'api_id': 42, 'api_hash': 'test', 'parse_user_id': False, 'parse_user_name': True}
-    save_config(test_config)
-    print("Тест после save_config():", get_config())
-    # setup_config()  # Раскомментируй для ручного теста интерактивного меню
+    logger.info("[START_MAIN] Запуск yaml_config_handler")
+    # Тест функции get_config
+    get_config()
+    # Тест функции save_config
+    save_config({'parse_user_id': False, 'parse_user_name': True})
+    # Тест функции setup_config
+    setup_config()
+    logger.info("[END_MAIN] Завершение yaml_config_handler")
 # endregion 

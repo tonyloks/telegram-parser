@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# VSCode/IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.venv/
+venv/
+ENV/
+
+# Sessions
+sessions/
+*.session
+
+# Data (не игнорируем, если нужны в репозитории)
+# data/*.txt
+data/options.txt
+
+# Logs
+*.log
+
+# Cursor
+.cursor/ 

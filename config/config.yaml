@@ -1,0 +1,5 @@
+# Конфигурация приложения (пример)
+# api_id: 123456
+# api_hash: "abcdef..."
+# parse_user_id: true
+# parse_user_name: true 

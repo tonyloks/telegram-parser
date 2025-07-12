@@ -1,4 +1,0 @@
-NONEID
-NONEHASH
-True
-True

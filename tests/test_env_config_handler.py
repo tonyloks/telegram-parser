@@ -68,17 +68,16 @@ class TestEnvConfigHandler(unittest.TestCase):
                 # Логируем исходные данные
                 old_data = env_config_handler.get_user_data()
                 logger.info(f'[OLD_DATA][Перед изменением] {old_data}')
-                with patch('builtins.input', side_effect=['1', '12345', '2', 'hashval', 'e']):
-                    env_config_handler.setup_user_data()
-                    # Логируем новые данные после изменений
-                    new_data = env_config_handler.get_user_data()
-                    logger.info(f'[NEW_DATA][После изменений] {new_data}')
-                    # Логируем что именно изменилось
-                    for k in old_data:
-                        if old_data[k] != new_data[k]:
-                            logger.info(f'[CHANGE][{k}] {old_data[k]} -> {new_data[k]}')
-                    self.assertEqual(new_data['api_id'], '12345')
-                    self.assertEqual(new_data['api_hash'], 'hashval')
+                env_config_handler.setup_user_data("12345", "hashval")
+                # Логируем новые данные после изменений
+                new_data = env_config_handler.get_user_data()
+                logger.info(f'[NEW_DATA][После изменений] {new_data}')
+                # Логируем что именно изменилось
+                for k in old_data:
+                    if old_data[k] != new_data[k]:
+                        logger.info(f'[CHANGE][{k}] {old_data[k]} -> {new_data[k]}')
+                self.assertEqual(new_data['api_id'], '12345')
+                self.assertEqual(new_data['api_hash'], 'hashval')
         os.unlink(tf.name)
         logger.info('[END_TEST][test_setup_user_data_update]')
     # endregion FUNCTION test_setup_user_data_update

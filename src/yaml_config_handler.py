@@ -2,18 +2,19 @@
 Файл: yaml_config_handler.py
 
 Назначение:
-    Работа с конфигурацией приложения в формате YAML.
-    - Чтение, сохранение и интерактивная настройка параметров выгрузки (config/config.yaml)
+    Работа с конфигурацией приложения в формате YAML (config/config.yaml) с использованием pydantic-модели AppConfigData.
 
 Основные компоненты:
 
+Классы:
+    - AppConfigData(BaseModel):
+        Pydantic-модель для хранения параметров config.yaml (api_id, api_hash, parse_user_id, parse_user_name).
+
 Функции:
-    - get_config() -> dict:
-        Чтение параметров из config/config.yaml.
-    - save_config(config: dict) -> None:
-        Сохранение параметров в config/config.yaml.
-    - setup_config() -> None:
-        Интерактивное меню для настройки параметров выгрузки.
+    - get_config() -> AppConfigData | None:
+        Чтение параметров из config/config.yaml, возврат модели AppConfigData или None.
+    - save_config(config: AppConfigData) -> None:
+        Сохраняет параметры из модели AppConfigData в config/config.yaml.
 
 Константы:
     - CONFIG_PATH: str = "config/config.yaml"
@@ -23,6 +24,8 @@
     - os
     - logging
     - yaml (PyYAML)
+    - pydantic
+    - config.logger (get_logger)
 """
 
 # region Импорты
@@ -42,7 +45,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 # endregion
 
+# region Модель данных
+from pydantic import BaseModel, Field
 
+class AppConfigData(BaseModel):
+    """
+    Модель для хранения параметров config.yaml.
+    """
+    parse_user_id: bool = Field(..., description="Парсить user-id")
+    parse_user_name: bool = Field(..., description="Парсить user-name")
+# endregion
 
 # region Константы
 CONFIG_PATH: str = "config/config.yaml"
@@ -57,27 +69,27 @@ logger = get_logger(__name__)
 # Args:
 #   - None
 # Returns:
-#   - dict: Словарь с параметрами из config.yaml
+#   - AppConfigData | None: Модель с параметрами из config.yaml или None
 # Side Effects:
 #   - Чтение файла config/config.yaml
 # Raises:
 #   - FileNotFoundError, yaml.YAMLError
 
-def get_config() -> dict:
+def get_config() -> AppConfigData | None:
     """
-    Читает параметры из config/config.yaml.
+    Читает параметры из config/config.yaml и возвращает AppConfigData.
     """
     logger.info("[START_FUNCTION][get_config] Чтение конфига")
     if not os.path.exists(CONFIG_PATH):
         logger.warning("[get_config][Проверка файла] Файл не найден: %s", CONFIG_PATH)
-        logger.info("[END_FUNCTION][get_config] Возврат пустого словаря")
-        return {}
+        logger.info("[END_FUNCTION][get_config] Возврат None")
+        return None
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
             logger.info(f"[get_config][Чтение файла] Прочитан конфиг: {config}")
             logger.info("[END_FUNCTION][get_config] Успешно")
-            return config
+            return AppConfigData(**config)
     except Exception as e:
         logger.error(f"[get_config][Ошибка] Ошибка чтения {CONFIG_PATH}: {e}")
         logger.info("[END_FUNCTION][get_config] Ошибка")
@@ -87,7 +99,7 @@ def get_config() -> dict:
 # region FUNCTION save_config
 # CONTRACT
 # Args:
-#   - config: dict — параметры для сохранения
+#   - config: AppConfigData — параметры для сохранения
 # Returns:
 #   - None
 # Side Effects:
@@ -95,73 +107,23 @@ def get_config() -> dict:
 # Raises:
 #   - OSError, yaml.YAMLError
 
-def save_config(config: dict) -> None:
+def save_config(config: AppConfigData) -> None:
     """
     Сохраняет параметры в config/config.yaml.
     """
     logger.info(f"[START_FUNCTION][save_config] Сохранение конфига: {config}")
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-        yaml.safe_dump(config, f, allow_unicode=True)
+        yaml.safe_dump(config.dict(), f, allow_unicode=True)
     logger.info("[END_FUNCTION][save_config] Конфиг сохранён")
 # endregion FUNCTION save_config
-
-# region FUNCTION setup_config
-# CONTRACT
-# Args:
-#   - None
-# Returns:
-#   - None
-# Side Effects:
-#   - Ввод/вывод в консоль, чтение/запись файла
-# Raises:
-#   - FileNotFoundError, OSError, yaml.YAMLError
-
-def setup_config() -> None:
-    logger.info("[START_FUNCTION][setup_config] Запуск интерактивной настройки")
-    while True:
-        os.system('cls||clear')
-        config = get_config()
-        config.setdefault('api_id', None)
-        config.setdefault('api_hash', None)
-        config.setdefault('parse_user_id', True)
-        config.setdefault('parse_user_name', True)
-        print(f"1 - Обновить api_id [{config['api_id']}]")
-        print(f"2 - Обновить api_hash [{config['api_hash']}]")
-        print(f"3 - Парсить user-id [{config['parse_user_id']}]")
-        print(f"4 - Парсить user-name [{config['parse_user_name']}]")
-        print("e - Выход")
-        key = input("Ввод: ")
-        logger.info(f"[setup_config][Меню] выбран пункт: {key}")
-        if key == '1':
-            os.system('cls||clear')
-            config['api_id'] = input("Введите API_ID: ")
-            logger.info(f"[setup_config][Изменение] обновлен api_id: {config['api_id']}")
-        elif key == '2':
-            os.system('cls||clear')
-            config['api_hash'] = input("Введите API_HASH: ")
-            logger.info(f"[setup_config][Изменение] обновлен api_hash: {config['api_hash']}")
-        elif key == '3':
-            config['parse_user_id'] = not config.get('parse_user_id', True)
-            logger.info(f"[setup_config][Изменение] переключен parse_user_id: {config['parse_user_id']}")
-        elif key == '4':
-            config['parse_user_name'] = not config.get('parse_user_name', True)
-            logger.info(f"[setup_config][Изменение] переключен parse_user_name: {config['parse_user_name']}")
-        elif key == 'e':
-            os.system('cls||clear')
-            logger.info("[END_FUNCTION][setup_config] Выход из настройки")
-            break
-        save_config(config)
-        logger.info("[setup_config][Сохранение] параметры сохранены")
-# endregion FUNCTION setup_config 
 
 # region Точка входа
 if __name__ == "__main__":
     logger.info("[START_MAIN] Запуск yaml_config_handler")
     # Тест функции get_config
-    get_config()
+    config = get_config()
+    logger.info(f"[MAIN][config] {config}")
     # Тест функции save_config
-    save_config({'parse_user_id': False, 'parse_user_name': True})
-    # Тест функции setup_config
-    setup_config()
+    save_config(AppConfigData(parse_user_id=True, parse_user_name=False))
     logger.info("[END_MAIN] Завершение yaml_config_handler")
 # endregion 

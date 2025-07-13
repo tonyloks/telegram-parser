@@ -34,3 +34,6 @@ data/options.txt
 
 # Cursor
 .cursor/ 
+
+# Files for development
+REFACTORING.md

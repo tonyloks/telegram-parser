@@ -80,6 +80,41 @@ class SessionManager:
         self.client = TelegramClient(str(self.session_path), self.user_data.api_id, self.user_data.api_hash)
         logger.info(f"[SessionManager][INIT] Менеджер сессий для {self.session_name} инициализирован.")
 
+    # region FUNCTION start_auth
+    # CONTRACT
+    # Args: None
+    # Returns: str — phone_code_hash, необходимый для завершения авторизации
+    # Side Effects: Отправляет код подтверждения на телефон пользователя
+    # Raises: Exception при ошибке отправки кода
+    async def start_auth(self) -> str:
+        """
+        Отправляет код подтверждения на телефон пользователя и возвращает phone_code_hash.
+        """
+        logger.info(f"[START_FUNCTION][start_auth] Отправка кода на {self.user_data.phone_number}")
+        await self.client.connect()
+        sent_code = await self.client.send_code_request(self.user_data.phone_number)
+        phone_code_hash = sent_code.phone_code_hash
+        logger.info(f"[END_FUNCTION][start_auth] Код отправлен, hash: {phone_code_hash}")
+        return phone_code_hash
+    # endregion FUNCTION start_auth
+
+    # region FUNCTION finish_auth
+    # CONTRACT
+    # Args:
+    #   - code: str — код подтверждения из Telegram
+    #   - phone_code_hash: str — hash, полученный на этапе start_auth
+    # Returns: None
+    # Side Effects: Завершает авторизацию пользователя
+    # Raises: Exception при ошибке авторизации
+    async def finish_auth(self, code: str, phone_code_hash: str) -> None:
+        """
+        Завершает авторизацию пользователя по коду и hash.
+        """
+        logger.info(f"[START_FUNCTION][finish_auth] Завершение авторизации для {self.user_data.phone_number}")
+        await self.client.sign_in(self.user_data.phone_number, code, phone_code_hash=phone_code_hash)
+        logger.info(f"[END_FUNCTION][finish_auth] Авторизация завершена")
+    # endregion FUNCTION finish_auth
+
     # region FUNCTION connect
     # CONTRACT
     # Args: None
@@ -87,20 +122,20 @@ class SessionManager:
     # Side Effects: Подключается к Telegram.
     # Raises: Exception on connection failure.
     async def connect(self):
-        """Подключает клиента Telegram."""
+        """[УСТАРЕЛО] Подключает клиента Telegram. Используйте start_auth/finish_auth для web-интерфейса."""
         logger.info(f"[START_FUNCTION][connect] Подключение клиента {self.session_name}")
         try:
             await self.client.connect()
             if not await self.client.is_user_authorized():
                 logger.warning(f"[connect] Пользователь {self.session_name} не авторизован. Попытка входа.")
-                await self.client.send_code_request(self.user_data.phone_number)
+                sent_code = await self.client.send_code_request(self.user_data.phone_number)
+                phone_code_hash = sent_code.phone_code_hash
                 # Код подтверждения нужно будет ввести в консоли
-                await self.client.sign_in(self.user_data.phone_number, input('Введите код подтверждения: '))
+                await self.client.sign_in(self.user_data.phone_number, input('Введите код подтверждения: '), phone_code_hash=phone_code_hash)
             logger.info(f"[END_FUNCTION][connect] Клиент {self.session_name} успешно подключен.")
         except Exception as e:
             logger.error(f"[connect][ERROR] Не удалось подключить клиента: {e}")
             raise
-
     # endregion FUNCTION connect
 
     # region FUNCTION disconnect

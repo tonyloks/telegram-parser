@@ -234,22 +234,45 @@ def _handle_delete_session_button(phone_number: str) -> None:
 
 def _handle_create_session_button(user_data: UserEnvData) -> None:
     """
-    Кнопка и логика создания сессии пользователя.
+    Кнопка и логика создания сессии пользователя (двухэтапная авторизация).
     """
-    if st.button("Создать сессию", key="create_session", help="Будет создан файл сессии. Код подтверждения потребуется в консоли!"):
-        try:
+    if 'phone_code_hash' not in st.session_state:
+        if st.button("Создать сессию", key="create_session", help="Будет создан файл сессии. Код подтверждения потребуется!"):
             import asyncio
             logger.info(f"Создание сессии для номера: {user_data.phone_number}")
-            async def create_session():
+            async def start() -> bool:
+                """Запускает процесс авторизации и возвращает True в случае успеха."""
                 manager = SessionManager(user_data)
-                await manager.connect()
-            asyncio.run(create_session())
-            st.success("Сессия успешно создана. Перезапустите страницу.")
-            logger.info("Сессия создана.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Ошибка при создании сессии: {e}")
-            logger.error(f"Ошибка создания сессии: {e}")
+                try:
+                    phone_code_hash = await manager.start_auth()
+                    st.session_state['phone_code_hash'] = phone_code_hash
+                    return True
+                except Exception as e:
+                    st.error(f"Ошибка при отправке кода: {e}")
+                    logger.error(f"Ошибка отправки кода: {e}")
+                    return False
+
+            if asyncio.run(start()):
+                st.rerun()
+    else:
+        with st.form(key="code_form"):
+            code = st.text_input("Введите код из Telegram", max_chars=10)
+            submitted = st.form_submit_button("Подтвердить код")
+            if submitted:
+                import asyncio
+                async def finish():
+                    manager = SessionManager(user_data)
+                    try:
+                        await manager.finish_auth(code, st.session_state['phone_code_hash'])
+                        st.success("Сессия успешно создана. Перезапустите страницу.")
+                        logger.info("Сессия создана.")
+                        del st.session_state['phone_code_hash']
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Ошибка при создании сессии: {e}")
+                        logger.error(f"Ошибка создания сессии: {e}")
+                asyncio.run(finish())
+        st.info("Код отправлен на ваш Telegram. Введите его для завершения авторизации.")
 # endregion FUNCTION _handle_create_session_button
 
 # region FUNCTION render_auth_menu

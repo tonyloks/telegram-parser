@@ -112,6 +112,33 @@ def setup_user_data(user_data: UserEnvData) -> None:
     logger.info("[END_FUNCTION][setup_user_data] Данные сохранены")
 # endregion FUNCTION setup_user_data
 
+# region FUNCTION clear_user_data
+# CONTRACT
+# Args:
+#   - None
+# Returns:
+#   - None
+# Side Effects:
+#   - Удаляет API_ID, API_HASH, PHONE_NUMBER из .env
+# Raises:
+#   - None (ошибки логируются)
+def clear_user_data() -> None:
+    """
+    Удаляет API_ID, API_HASH, PHONE_NUMBER из .env.
+    """
+    logger.info("[START_FUNCTION][clear_user_data] Очистка .env от авторизационных данных")
+    if not os.path.exists(ENV_PATH):
+        logger.warning(f"[clear_user_data] Файл {ENV_PATH} не найден.")
+        return
+    with open(ENV_PATH, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    keys_to_remove = {"API_ID", "API_HASH", "PHONE_NUMBER"}
+    new_lines = [line for line in lines if not any(line.strip().startswith(key + "=") for key in keys_to_remove)]
+    with open(ENV_PATH, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+    logger.info("[END_FUNCTION][clear_user_data] Авторизационные данные удалены из .env")
+# endregion FUNCTION clear_user_data
+
 # region Точка входа
 if __name__ == "__main__":
     logger.info("[START_MAIN] Запуск env_config_handler")

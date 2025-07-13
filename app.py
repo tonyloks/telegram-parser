@@ -36,12 +36,13 @@ def main() -> None:
     st.set_page_config(page_title="Telegram Parser", layout="wide")
     render_header()
     menu_choice = render_sidebar_menu()
-    if menu_choice == "Настройки":
-        from UI.components import render_settings_menu
-        settings_choice = render_settings_menu()
-        st.write(f"Выбран раздел настроек: {settings_choice}")
-    else:
+    if menu_choice == "Авторизация":    
+        from UI.components import render_auth_menu
+        render_auth_menu()  
+    elif menu_choice == "Парсинг":
         st.write(f"Выбран пункт меню: {menu_choice}")
+    else:
+        st.write(f"Выбран неизвестный пункт меню: {menu_choice}")
 # endregion FUNCTION main
 
 # region Точка входа

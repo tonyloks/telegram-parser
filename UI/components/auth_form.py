@@ -59,11 +59,40 @@ def _handle_form_submission(api_id: str, api_hash: str, phone_number: str) -> No
         setup_user_data(new_data)
         st.success("Учетные данные успешно сохранены!")
         logger.info("Учетные данные сохранены.")
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f"Ошибка при сохранении данных: {e}")
         logger.error(f"Ошибка сохранения .env: {e}")
 # endregion FUNCTION _handle_form_submission
+
+# region FUNCTION _handle_delete_user_data
+# CONTRACT
+# Args:
+#   - None
+# Returns:
+#   - None
+# Side Effects:
+#   - Удаляет данные пользователя через clear_user_data
+#   - Показывает сообщения через streamlit
+#   - Логирует действия
+#   - Перезапускает страницу через st.experimental_rerun
+# Raises:
+#   - None (ошибки отображаются пользователю и логируются)
+def _handle_delete_user_data() -> None:
+    """
+    Удаляет учетные данные пользователя из .env.
+    """
+    try:
+        logger.info("Удаление учетных данных пользователя")
+        clear_user_data()
+        st.success("Данные пользователя удалены из .env.")
+        logger.info("Данные пользователя удалены.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Ошибка при удалении данных: {e}")
+        logger.error(f"Ошибка удаления данных: {e}")
+# endregion FUNCTION _handle_delete_user_data
+
 
 # region FUNCTION _display_auth_form
 # CONTRACT
@@ -74,6 +103,7 @@ def _handle_form_submission(api_id: str, api_hash: str, phone_number: str) -> No
 # Side Effects:
 #   - Отображает форму через streamlit
 #   - При сабмите вызывает _handle_form_submission
+#   - Кнопка удаления вызывает _handle_delete_user_data
 # Raises:
 #   - None
 
@@ -97,48 +127,130 @@ def _display_auth_form(user_data: Optional[UserEnvData]) -> None:
             "Номер телефона",
             value=user_data.phone_number if user_data else ""
         )
-
         submitted = st.form_submit_button("Сохранить данные")
         if submitted:
             _handle_form_submission(api_id, api_hash, phone_number)
+    if st.button("Удалить данные", key="delete_user_data", help="Удаляет API_ID, API_HASH, PHONE_NUMBER из .env"):
+        _handle_delete_user_data()
 # endregion FUNCTION _display_auth_form
 
-# region FUNCTION _display_status_and_actions
+
+# region FUNCTION _display_session_block
+# CONTRACT
+# Args:
+#   - user_data: Optional[UserEnvData] — текущие данные пользователя или None
+# Returns:
+#   - None
+# Side Effects:
+#   - Показывает статус сессии и кнопку через streamlit
+#   - Удаляет или создает сессию при нажатии кнопки
+#   - Логирует действия
+#   - Перезапускает страницу через st.experimental_rerun
+# Raises:
+#   - None (ошибки отображаются пользователю и логируются)
+def _display_session_block(user_data: Optional[UserEnvData]) -> None:
+    """
+    Отдельный блок для статуса сессии и управления сессией (создание/удаление).
+    """
+    st.markdown("##### Сессия")
+    if not user_data:
+        st.info("Нет данных пользователя — сессия не может быть определена.")
+        return
+    phone_number = user_data.phone_number
+    session_exists = SessionManager.session_file_exists(phone_number)
+    _render_session_status(session_exists, phone_number)
+    if session_exists:
+        _handle_delete_session_button(phone_number)
+    else:
+        _handle_create_session_button(user_data)
+# endregion FUNCTION _display_session_block
+
+# region FUNCTION _render_session_status
+# CONTRACT
+# Args:
+#   - session_exists: bool — наличие сессии
+#   - phone_number: str — номер телефона пользователя
+# Returns:
+#   - None
+# Side Effects:
+#   - Показывает статус сессии через streamlit
+# Raises:
+#   - None
+
+def _render_session_status(session_exists: bool, phone_number: str) -> None:
+    """
+    Отображает статус сессии для пользователя.
+    """
+    if session_exists:
+        st.success(f"✅ Активная сессия найдена для номера {phone_number}")
+    else:
+        st.warning(f"Сессия для номера {phone_number} не найдена.")
+# endregion FUNCTION _render_session_status
+
+
+# region FUNCTION _handle_delete_session_button
+# CONTRACT
+# Args:
+#   - phone_number: str — номер телефона пользователя
+# Returns:
+#   - None
+# Side Effects:
+#   - Показывает кнопку и сообщения через streamlit
+#   - Удаляет сессию при нажатии
+#   - Логирует действия
+#   - Перезапускает страницу через st.experimental_rerun
+# Raises:
+#   - None
+
+def _handle_delete_session_button(phone_number: str) -> None:
+    """
+    Кнопка и логика удаления сессии пользователя.
+    """
+    if st.button("Удалить сессию", key="delete_session", help="ВНИМАНИЕ: действие необратимо!"):
+        try:
+            logger.info(f"Удаление сессии для номера: {phone_number}")
+            SessionManager.remove_all_sessions_by_phone(phone_number)
+            st.success("Все файлы сессии были удалены.")
+            logger.info("Сессия удалена.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Ошибка при удалении сессии: {e}")
+            logger.error(f"Ошибка удаления сессии: {e}")
+# endregion FUNCTION _handle_delete_session_button
+
+# region FUNCTION _handle_create_session_button
 # CONTRACT
 # Args:
 #   - user_data: UserEnvData — данные пользователя
 # Returns:
 #   - None
 # Side Effects:
-#   - Показывает статус сессии и кнопки через streamlit
-#   - Удаляет сессии и данные пользователя при нажатии кнопки
+#   - Показывает кнопку и сообщения через streamlit
+#   - Создает сессию при нажатии
 #   - Логирует действия
 #   - Перезапускает страницу через st.experimental_rerun
 # Raises:
-#   - None (ошибки отображаются пользователю и логируются)
-def _display_status_and_actions(user_data: UserEnvData) -> None:
-    """
-    Отображает статус сессии и действия (например, удаление сессии и данных).
-    """
-    phone_number = user_data.phone_number
-    session_exists = SessionManager.session_file_exists(phone_number)
+#   - None
 
-    if session_exists:
-        st.success(f"✅ Активная сессия найдена для номера {phone_number}")
-
-    st.markdown("---")
-    if st.button("Удалить данные и сессию", key="delete_auth_data", type="primary", help="ВНИМАНИЕ: действие необратимо!"):
+def _handle_create_session_button(user_data: UserEnvData) -> None:
+    """
+    Кнопка и логика создания сессии пользователя.
+    """
+    if st.button("Создать сессию", key="create_session", help="Будет создан файл сессии. Код подтверждения потребуется в консоли!"):
         try:
-            logger.info(f"Удаление данных и сессии для номера: {phone_number}")
-            SessionManager.remove_all_sessions_by_phone(phone_number)
-            clear_user_data()
-            st.success("Все данные и файлы сессии были удалены.")
-            logger.info("Данные и сессия удалены.")
-            st.experimental_rerun()
+            import asyncio
+            logger.info(f"Создание сессии для номера: {user_data.phone_number}")
+            async def create_session():
+                manager = SessionManager(user_data)
+                await manager.connect()
+            asyncio.run(create_session())
+            st.success("Сессия успешно создана. Перезапустите страницу.")
+            logger.info("Сессия создана.")
+            st.rerun()
         except Exception as e:
-            st.error(f"Ошибка при удалении данных: {e}")
-            logger.error(f"Ошибка удаления данных: {e}")
-# endregion FUNCTION _display_status_and_actions
+            st.error(f"Ошибка при создании сессии: {e}")
+            logger.error(f"Ошибка создания сессии: {e}")
+# endregion FUNCTION _handle_create_session_button
 
 # region FUNCTION render_auth_menu
 # CONTRACT
@@ -157,13 +269,8 @@ def render_auth_menu() -> None:
     """
     st.markdown("### Авторизация")
     st.info("Данные для подключения к Telegram API. Сохраняются в файл .env в корне проекта.")
-
     user_data = get_user_data()
-
-    # Функция отображения формы всегда вызывается
     _display_auth_form(user_data)
-
-    # Статус и кнопка удаления отображаются только если данные существуют
-    if user_data:
-        _display_status_and_actions(user_data)
+    st.markdown("---")
+    _display_session_block(user_data)
 # endregion FUNCTION render_auth_menu

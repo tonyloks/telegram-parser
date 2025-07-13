@@ -69,6 +69,7 @@ class SessionManager:
     def __init__(self, user_data: UserEnvData):
         """
         Инициализирует менеджер сессий.
+        Создает сессию, если она не существует с помощью TelegramClient.
 
         Args:
             user_data: Данные пользователя (api_id, api_hash, phone_number).

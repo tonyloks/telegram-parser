@@ -4,11 +4,13 @@
 Назначение:
     Управление сессией пользователя Telegram через Telethon. Хранение и восстановление сессии из файла SQLite в папке 'sessions'.
     Для получения api_id, api_hash и phone_number используется env_config_handler (чтение из .env через pydantic-модель UserEnvData).
+    
+    ВАЖНО: session_name формируется из phone_number пользователя с удалённым символом '+'. Файл сессии ищется и создаётся по имени <номер_без_плюса>.session в папке 'sessions'.
 
-Основные компоненты (будут добавлены):
+Основные компоненты:
 
 Классы:
-    - SessionManager: Класс для управления жизненным циклом сессии Telethon (создание, получение, удаление).
+    - SessionManager: Класс для управления жизненным циклом сессии Telethon (создание, получение, удаление, проверка существования).
 
 Функции:
     - create_session() -> TelegramClient:
@@ -17,6 +19,8 @@
         Возвращает TelegramClient, если сессия существует.
     - remove_session() -> None:
         Удаляет файл сессии пользователя из 'sessions/'.
+    - session_exists() -> bool:
+        Проверяет, существует ли файл сессии для пользователя (по номеру без '+').
 
 Константы:
     - SESSION_DIR: str = 'sessions'
@@ -144,57 +148,35 @@ class SessionManager:
             return False
     # endregion FUNCTION remove_session
 
+    # region FUNCTION session_exists
+    # CONTRACT
+    # Args: None
+    # Returns: bool - True, если файл сессии существует, иначе False.
+    # Side Effects: Нет
+    # Raises: Нет
+    def session_exists(self) -> bool:
+        """
+        Проверяет, существует ли файл сессии для текущего пользователя.
+        """
+        logger.info(f"[START_FUNCTION][session_exists] Проверка наличия сессии {self.session_name}")
+        exists = self.session_path.exists()
+        logger.info(f"[END_FUNCTION][session_exists] Сессия {self.session_name} существует: {exists}")
+        return exists
+    # endregion FUNCTION session_exists
+
 # endregion Класс SessionManager
 
 # region Точка входа
 if __name__ == "__main__":
-    # Для тестов необходимо, чтобы .env файл был настроен
-    # Можно использовать setup_user_data из env_config_handler для его создания
-    # from handlers.env_config_handler import setup_user_data
-    # setup_user_data(UserEnvData(api_id="YOUR_API_ID", api_hash="YOUR_API_HASH", phone_number="YOUR_PHONE"))
-
-    async def main():
-        logger.info("[START_MAIN] Тестирование SessionManager")
-        
-        # region Получаем данные пользователя из .env через get_user_data
-        from handlers.env_config_handler import get_user_data
-        user_env_data = get_user_data()
-        if user_env_data is None:
-            logger.error("[MAIN][ERROR] Не удалось получить данные пользователя из .env. Проверьте файл .env.")
-            return
-        # endregion
-
+    # region Тест: проверка существования сессии
+    import asyncio
+    from handlers.env_config_handler import get_user_data
+    user_env_data = get_user_data()
+    if user_env_data is None:
+        logger.error("[MAIN][ERROR] Не удалось получить данные пользователя из .env. Проверьте файл .env.")
+    else:
         session_manager = SessionManager(user_env_data)
-
-        # 1. Подключение
-        await session_manager.connect()
-
-        # 2. Получение клиента и вывод информации о себе
-        client = session_manager.get_session_client()
-        if await client.is_user_authorized():
-            me = await client.get_me()
-            logger.info(f"[MAIN][INFO] Информация о пользователе: {me.first_name} {me.last_name}")
-        
-        # 3. Отключение
-        await session_manager.disconnect()
-
-        # 4. Удаление сессии (раскомментируйте для теста)
-        # if session_manager.remove_session():
-        #     logger.info("[MAIN][INFO] Файл сессии успешно удален.")
-
-        logger.info("[END_MAIN] Тестирование SessionManager завершено.")
-
-    # Запуск асинхронной функции main
-    # Используем asyncio.run() для Python 3.7+
-    try:
-        asyncio.run(main())
-    except (ValueError, TypeError) as e:
-        # В некоторых средах (например, Jupyter/IPython) asyncio.run может вызывать ошибку,
-        # если цикл событий уже запущен. Используем альтернативный подход.
-        logger.warning(f"Ошибка при запуске asyncio.run: {e}. Попытка альтернативного запуска.")
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            task = loop.create_task(main())
-        else:
-            loop.run_until_complete(main())
+        exists = session_manager.session_exists()
+        logger.info(f"[MAIN][TEST] Сессия для {user_env_data.phone_number} существует: {exists}")
+    # endregion
 # endregion 

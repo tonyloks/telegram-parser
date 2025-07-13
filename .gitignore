@@ -24,6 +24,7 @@ ENV/
 # Sessions
 sessions/
 *.session
+save_sessions/
 
 # Data (не игнорируем, если нужны в репозитории)
 # data/*.txt
@@ -37,3 +38,4 @@ data/options.txt
 
 # Files for development
 REFACTORING.md
+

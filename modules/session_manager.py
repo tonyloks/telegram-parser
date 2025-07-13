@@ -184,6 +184,41 @@ class SessionManager:
         return session_path.exists()
     # endregion FUNCTION session_file_exists
 
+    # region FUNCTION remove_all_sessions_by_phone
+    # CONTRACT
+    # Args:
+    #   - phone_number: str — номер телефона пользователя (с + или без)
+    # Returns:
+    #   - int — количество удалённых файлов
+    # Side Effects:
+    #   - Удаляет все файлы сессий, соответствующие номеру
+    # Raises:
+    #   - Нет
+    @staticmethod
+    def remove_all_sessions_by_phone(phone_number: str) -> int:
+        """
+        Удаляет все файлы сессий для указанного номера телефона (с + и без +) в папке sessions.
+        """
+        logger = get_logger(__name__)
+        logger.info(f"[START_FUNCTION][remove_all_sessions_by_phone] Удаление всех сессий для номера {phone_number}")
+        session_variants = [
+            phone_number.replace('+', ''),
+            phone_number if phone_number.startswith('+') else f'+{phone_number}'
+        ]
+        removed_count = 0
+        for variant in set(session_variants):
+            session_file = SESSION_DIR / f"{variant}.session"
+            if session_file.exists():
+                try:
+                    session_file.unlink()
+                    removed_count += 1
+                    logger.info(f"[remove_all_sessions_by_phone] Удалён файл: {session_file}")
+                except Exception as e:
+                    logger.error(f"[remove_all_sessions_by_phone][ERROR] Не удалось удалить {session_file}: {e}")
+        logger.info(f"[END_FUNCTION][remove_all_sessions_by_phone] Удалено файлов: {removed_count}")
+        return removed_count
+    # endregion FUNCTION remove_all_sessions_by_phone
+
 # endregion Класс SessionManager
 
 # region Точка входа

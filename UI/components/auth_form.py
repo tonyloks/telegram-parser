@@ -243,6 +243,8 @@ def _handle_create_session_button(user_data: UserEnvData) -> None:
             async def start() -> bool:
                 """Запускает процесс авторизации и возвращает True в случае успеха."""
                 manager = SessionManager(user_data)
+                # Сохраняем менеджер в сессию, чтобы использовать тот же клиент
+                st.session_state['session_manager'] = manager
                 try:
                     phone_code_hash = await manager.start_auth()
                     st.session_state['phone_code_hash'] = phone_code_hash
@@ -250,6 +252,8 @@ def _handle_create_session_button(user_data: UserEnvData) -> None:
                 except Exception as e:
                     st.error(f"Ошибка при отправке кода: {e}")
                     logger.error(f"Ошибка отправки кода: {e}")
+                    if 'session_manager' in st.session_state:
+                        del st.session_state['session_manager']
                     return False
 
             if asyncio.run(start()):
@@ -261,12 +265,22 @@ def _handle_create_session_button(user_data: UserEnvData) -> None:
             if submitted:
                 import asyncio
                 async def finish():
-                    manager = SessionManager(user_data)
+                    # Используем существующий менеджер из сессии
+                    manager = st.session_state.get('session_manager')
+                    if not manager:
+                        st.error("Ошибка: сессия истекла. Пожалуйста, запросите код заново.")
+                        # Очищаем состояние, чтобы пользователь мог начать сначала
+                        del st.session_state['phone_code_hash']
+                        st.rerun()
+                        return
+
                     try:
                         await manager.finish_auth(code, st.session_state['phone_code_hash'])
-                        st.success("Сессия успешно создана. Перезапустите страницу.")
+                        st.success("Сессия успешно создана. Страница будет перезагружена.")
                         logger.info("Сессия создана.")
+                        # Очищаем все временные данные из сессии
                         del st.session_state['phone_code_hash']
+                        del st.session_state['session_manager']
                         st.rerun()
                     except Exception as e:
                         st.error(f"Ошибка при создании сессии: {e}")

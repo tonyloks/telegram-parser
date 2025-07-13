@@ -48,6 +48,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 import asyncio
 from telethon import TelegramClient
+from telethon.sessions import StringSession
+from telethon.errors import SessionPasswordNeededError
 from config.logger import get_logger
 from handlers.env_config_handler import get_user_data, UserEnvData
 # endregion
@@ -61,26 +63,57 @@ SESSION_DIR = Path('sessions')
 SESSION_DIR.mkdir(exist_ok=True) # Создаем папку, если ее нет
 # endregion
 
+# region Функции
+def _get_session_path(phone_number: str) -> Path:
+    """
+    Возвращает стандартизированный путь к файлу сессии.
+    """
+    SESSION_DIR.mkdir(exist_ok=True)
+    return SESSION_DIR / f"{phone_number.lstrip('+')}.session"
+# endregion Функции
+
 # region Класс SessionManager
 class SessionManager:
     """
-    Управляет сессиями Telethon.
+    Управляет сессиями Telethon: создание, авторизация, удаление.
     """
+
+    # region METHOD __init__
+    # CONTRACT
+    # Args:
+    #   - user_data: UserEnvData — данные пользователя (api_id, api_hash, phone_number).
+    # Returns:
+    #   - None
+    # Side Effects:
+    #   - Инициализирует клиент Telethon.
+    # Raises:
+    #   - ValueError: если api_id или api_hash отсутствуют.
     def __init__(self, user_data: UserEnvData):
         """
         Инициализирует менеджер сессий.
-        Создает сессию, если она не существует с помощью TelegramClient.
-
-        Args:
-            user_data: Данные пользователя (api_id, api_hash, phone_number).
         """
-        self.user_data = user_data
-        self.session_name = f"{self.user_data.phone_number.replace('+', '')}"
-        self.session_path = SESSION_DIR / f"{self.session_name}.session"
-        self.client = TelegramClient(str(self.session_path), self.user_data.api_id, self.user_data.api_hash)
-        logger.info(f"[SessionManager][INIT] Менеджер сессий для {self.session_name} инициализирован.")
+        if not user_data.api_id or not user_data.api_hash:
+            raise ValueError("API_ID и API_HASH должны быть предоставлены.")
 
-    # region FUNCTION start_auth
+        self.user_data = user_data
+        self.phone_number = user_data.phone_number.lstrip('+')
+        self.session_path = _get_session_path(user_data.phone_number)
+
+        self.client = TelegramClient(
+            StringSession(),  # Используем StringSession для временного хранения
+            int(self.user_data.api_id),
+            self.user_data.api_hash,
+            device_model="PC",
+            system_version="Windows 10",
+            app_version="1.0.0",
+            lang_code="ru",
+            system_lang_code="ru"
+        )
+
+        logger.info(f"[SessionManager][INIT] Менеджер сессий для {self.phone_number} инициализирован.")
+    # endregion METHOD __init__
+
+    # region METHOD start_auth
     # CONTRACT
     # Args: None
     # Returns: str — phone_code_hash, необходимый для завершения авторизации
@@ -88,32 +121,63 @@ class SessionManager:
     # Raises: Exception при ошибке отправки кода
     async def start_auth(self) -> str:
         """
-        Отправляет код подтверждения на телефон пользователя и возвращает phone_code_hash.
+        Начинает процесс авторизации, отправляя код на номер телефона.
         """
         logger.info(f"[START_FUNCTION][start_auth] Отправка кода на {self.user_data.phone_number}")
         await self.client.connect()
-        sent_code = await self.client.send_code_request(self.user_data.phone_number)
-        phone_code_hash = sent_code.phone_code_hash
-        logger.info(f"[END_FUNCTION][start_auth] Код отправлен, hash: {phone_code_hash}")
-        return phone_code_hash
-    # endregion FUNCTION start_auth
+        if not await self.client.is_user_authorized():
+            sent_code = await self.client.send_code_request(self.user_data.phone_number)
+            phone_code_hash = sent_code.phone_code_hash
+            logger.info(f"[END_FUNCTION][start_auth] Код отправлен, hash: {phone_code_hash}")
+            return phone_code_hash
+        raise RuntimeError("Клиент уже авторизован.")
+    # endregion METHOD start_auth
 
-    # region FUNCTION finish_auth
+    # region METHOD finish_auth
     # CONTRACT
     # Args:
-    #   - code: str — код подтверждения из Telegram
+    #   - phone_code: str — код подтверждения из Telegram
     #   - phone_code_hash: str — hash, полученный на этапе start_auth
+    #   - password: str | None — пароль для двухфакторной аутентификации (если требуется)
     # Returns: None
-    # Side Effects: Завершает авторизацию пользователя
-    # Raises: Exception при ошибке авторизации
-    async def finish_auth(self, code: str, phone_code_hash: str) -> None:
+    # Side Effects:
+    #   - Завершает авторизацию и сохраняет сессию в файл.
+    #   - Отключает клиент.
+    # Raises:
+    #   - SessionPasswordNeededError: если требуется 2FA пароль.
+    async def finish_auth(self, phone_code: str, phone_code_hash: str, password: str = None) -> None:
         """
-        Завершает авторизацию пользователя по коду и hash.
+        Завершает процесс авторизации с помощью кода и, возможно, пароля.
         """
-        logger.info(f"[START_FUNCTION][finish_auth] Завершение авторизации для {self.user_data.phone_number}")
-        await self.client.sign_in(self.user_data.phone_number, code, phone_code_hash=phone_code_hash)
-        logger.info(f"[END_FUNCTION][finish_auth] Авторизация завершена")
-    # endregion FUNCTION finish_auth
+        logger.info(f"[START_FUNCTION][finish_auth] Попытка завершения авторизации для {self.phone_number}")
+        
+        # Гарантируем, что клиент подключен перед отправкой запроса
+        if not self.client.is_connected():
+            await self.client.connect()
+
+        try:
+            await self.client.sign_in(
+                self.user_data.phone_number,
+                phone_code,
+                phone_code_hash=phone_code_hash
+            )
+        except SessionPasswordNeededError:
+            if not password:
+                logger.warning("[finish_auth] Требуется пароль двухфакторной аутентификации, но он не предоставлен.")
+                raise
+            await self.client.sign_in(password=password)
+
+        if await self.client.is_user_authorized():
+            # Сохраняем строку сессии в файл
+            session_string = self.client.session.save()
+            with self.session_path.open("w", encoding="utf-8") as f:
+                f.write(session_string)
+            logger.info(f"[END_FUNCTION][finish_auth] Сессия для {self.phone_number} успешно сохранена в файл.")
+        else:
+            logger.error("[finish_auth] Авторизация не удалась.")
+
+        await self.client.disconnect()
+    # endregion METHOD finish_auth
 
     # region FUNCTION connect
     # CONTRACT
@@ -123,16 +187,16 @@ class SessionManager:
     # Raises: Exception on connection failure.
     async def connect(self):
         """[УСТАРЕЛО] Подключает клиента Telegram. Используйте start_auth/finish_auth для web-интерфейса."""
-        logger.info(f"[START_FUNCTION][connect] Подключение клиента {self.session_name}")
+        logger.info(f"[START_FUNCTION][connect] Подключение клиента {self.phone_number}")
         try:
             await self.client.connect()
             if not await self.client.is_user_authorized():
-                logger.warning(f"[connect] Пользователь {self.session_name} не авторизован. Попытка входа.")
+                logger.warning(f"[connect] Пользователь {self.phone_number} не авторизован. Попытка входа.")
                 sent_code = await self.client.send_code_request(self.user_data.phone_number)
                 phone_code_hash = sent_code.phone_code_hash
                 # Код подтверждения нужно будет ввести в консоли
                 await self.client.sign_in(self.user_data.phone_number, input('Введите код подтверждения: '), phone_code_hash=phone_code_hash)
-            logger.info(f"[END_FUNCTION][connect] Клиент {self.session_name} успешно подключен.")
+            logger.info(f"[END_FUNCTION][connect] Клиент {self.phone_number} успешно подключен.")
         except Exception as e:
             logger.error(f"[connect][ERROR] Не удалось подключить клиента: {e}")
             raise
@@ -145,12 +209,12 @@ class SessionManager:
     # Side Effects: Отключается от Telegram.
     async def disconnect(self):
         """Отключает клиента Telegram."""
-        logger.info(f"[START_FUNCTION][disconnect] Отключение клиента {self.session_name}")
+        logger.info(f"[START_FUNCTION][disconnect] Отключение клиента {self.phone_number}")
         if self.client.is_connected():
             await self.client.disconnect()
-            logger.info(f"[END_FUNCTION][disconnect] Клиент {self.session_name} отключен.")
+            logger.info(f"[END_FUNCTION][disconnect] Клиент {self.phone_number} отключен.")
         else:
-            logger.info(f"[disconnect] Клиент {self.session_name} уже был отключен.")
+            logger.info(f"[disconnect] Клиент {self.phone_number} уже был отключен.")
     # endregion FUNCTION disconnect
     
     # region FUNCTION get_session_client
@@ -159,7 +223,7 @@ class SessionManager:
     # Returns: TelegramClient - экземпляр клиента.
     def get_session_client(self) -> TelegramClient:
         """Возвращает экземпляр TelegramClient."""
-        logger.info(f"[get_session_client] Возвращен клиент для сессии {self.session_name}")
+        logger.info(f"[get_session_client] Возвращен клиент для сессии {self.phone_number}")
         return self.client
     # endregion FUNCTION get_session_client
 
@@ -170,11 +234,11 @@ class SessionManager:
     # Side Effects: Удаляет файл сессии.
     def remove_session(self) -> bool:
         """Удаляет файл сессии."""
-        logger.info(f"[START_FUNCTION][remove_session] Удаление сессии {self.session_name}")
+        logger.info(f"[START_FUNCTION][remove_session] Удаление сессии {self.phone_number}")
         if self.session_path.exists():
             try:
                 self.session_path.unlink()
-                logger.info(f"[END_FUNCTION][remove_session] Сессия {self.session_name} удалена.")
+                logger.info(f"[END_FUNCTION][remove_session] Сессия {self.phone_number} удалена.")
                 return True
             except OSError as e:
                 logger.error(f"[remove_session][ERROR] Ошибка при удалении файла сессии: {e}")
@@ -194,9 +258,9 @@ class SessionManager:
         """
         Проверяет, существует ли файл сессии для текущего пользователя.
         """
-        logger.info(f"[START_FUNCTION][session_exists] Проверка наличия сессии {self.session_name}")
+        logger.info(f"[START_FUNCTION][session_exists] Проверка наличия сессии {self.phone_number}")
         exists = self.session_path.exists()
-        logger.info(f"[END_FUNCTION][session_exists] Сессия {self.session_name} существует: {exists}")
+        logger.info(f"[END_FUNCTION][session_exists] Сессия {self.phone_number} существует: {exists}")
         return exists
     # endregion FUNCTION session_exists
 

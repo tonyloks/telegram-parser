@@ -20,6 +20,7 @@
 import streamlit as st
 from handlers.env_config_handler import get_user_data, setup_user_data, UserEnvData
 from config.logger import get_logger
+from modules.session_manager import SessionManager
 # endregion
 
 # region FUNCTION render_header
@@ -86,6 +87,14 @@ def render_auth_menu() -> None:
     st.markdown("### Авторизация")
     st.info("Данные подгружаются и сохраняются в файл .env в директории проекта.")
     user_data = get_user_data()
+    # Проверка сессии через статический метод
+    session_status = None
+    if user_data:
+        if SessionManager.session_file_exists(user_data.phone_number):
+            session_status = "Сессия Telegram: найдена"
+        else:
+            session_status = "Сессия Telegram: не найдена"
+        st.info(session_status)
     api_id = st.text_input("API_ID", value=user_data.api_id if user_data else "", key="api_id_input", type="password")
     api_hash = st.text_input("API_HASH", value=user_data.api_hash if user_data else "", key="api_hash_input", type="password")
     phone_number = st.text_input("PHONE_NUMBER", value=user_data.phone_number if user_data else "", key="phone_number_input")

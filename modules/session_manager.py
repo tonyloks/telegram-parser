@@ -164,6 +164,26 @@ class SessionManager:
         return exists
     # endregion FUNCTION session_exists
 
+    # region FUNCTION session_file_exists
+    # CONTRACT
+    # Args:
+    #   - phone_number: str — номер телефона пользователя (с + или без)
+    # Returns:
+    #   - bool — True, если файл сессии существует, иначе False
+    # Side Effects:
+    #   - Нет
+    # Raises:
+    #   - Нет
+    @staticmethod
+    def session_file_exists(phone_number: str) -> bool:
+        """
+        Проверяет, существует ли файл сессии для указанного номера телефона.
+        """
+        session_name = phone_number.replace('+', '')
+        session_path = SESSION_DIR / f"{session_name}.session"
+        return session_path.exists()
+    # endregion FUNCTION session_file_exists
+
 # endregion Класс SessionManager
 
 # region Точка входа

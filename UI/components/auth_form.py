@@ -1,19 +1,17 @@
 """
-Файл: components.py
+Файл: auth_form.py
 
 Назначение:
-    Визуальные компоненты Streamlit-приложения: заголовок, меню и форма авторизации Telegram API.
-
-Основные компоненты:
+    Компонент Streamlit для отображения формы авторизации Telegram API.
 
 Функции:
-    - render_header(): Отображает заголовок приложения.
-    - render_sidebar_menu(): Отображает меню слева с пунктами 'Авторизация' и 'Парсинг'.
     - render_auth_menu(): Отображает форму авторизации (API_ID, API_HASH, PHONE_NUMBER) с автозаполнением из .env.
 
 Зависимости:
     - streamlit
     - handlers.env_config_handler (get_user_data, setup_user_data, UserEnvData)
+    - config.logger (get_logger)
+    - modules.session_manager (SessionManager)
 """
 
 # region Импорты
@@ -22,51 +20,6 @@ from handlers.env_config_handler import get_user_data, setup_user_data, UserEnvD
 from config.logger import get_logger
 from modules.session_manager import SessionManager
 # endregion
-
-# region FUNCTION render_header
-# CONTRACT
-# Args:
-#   - Нет
-# Returns:
-#   - None
-# Side Effects:
-#   - Отображает заголовок в UI
-# Raises:
-#   - Нет
-def render_header() -> None:
-    """
-    Отображает заголовок приложения.
-    """
-    st.title("Приложение для выгрузки чатов")
-# endregion FUNCTION render_header
-
-# region FUNCTION render_sidebar_menu
-# CONTRACT
-# Args:
-#   - Нет
-# Returns:
-#   - str: выбранный пункт меню ('Авторизация' или 'Парсинг')
-# Side Effects:
-#   - Отображает меню в сайдбаре, меняет session_state
-# Raises:
-#   - Нет
-def render_sidebar_menu() -> str:
-    """
-    Отображает вертикальное меню слева и возвращает выбранный пункт.
-    """
-    menu = ["Авторизация", "Парсинг"]
-    if "menu" not in st.session_state:
-        st.session_state["menu"] = menu[0]
-
-    def set_menu(item):
-        st.session_state["menu"] = item
-
-    st.sidebar.markdown("## Меню")
-    for item in menu:
-        if st.sidebar.button(item, key=f"menu_{item}", use_container_width=True):
-            set_menu(item)
-    return st.session_state["menu"]
-# endregion FUNCTION render_sidebar_menu
 
 # region FUNCTION render_auth_menu
 # CONTRACT
@@ -117,7 +70,4 @@ def render_auth_menu() -> None:
                 '<span style="font-size:22px;">✅</span>'
                 '<span style="background-color:#d4edda;color:#155724;padding:4px 12px;border-radius:6px;font-weight:600;">Сессия найдена</span>'
                 '</span>', unsafe_allow_html=True)
-# endregion FUNCTION render_auth_menu
-
-# region Удалённая функция render_settings_menu
-# endregion 
+# endregion FUNCTION render_auth_menu 
